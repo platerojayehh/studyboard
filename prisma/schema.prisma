@@ -1,0 +1,25 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "sqlite"
+}
+
+
+model Group {
+    id              String      @id @default(cuid())
+    name            String
+    subject         String
+    memberCount     Int         @default(1)
+    tasks           Task[]
+    createdAt       DateTime    @default(now())
+}
+
+model Task {
+    id              String      @id @default(cuid())
+    title           String
+    done            Boolean
+    groupId         String
+    group           Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
