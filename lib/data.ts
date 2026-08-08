@@ -1,3 +1,5 @@
+import { prisma } from "./prisma";
+
 export type Task = {
   id: string;
   title: string;
@@ -12,46 +14,107 @@ export type Group = {
   tasks: Task[];
 };
 
-// Static mock data — will be replaced by real database queries in Week 5.
-const groups: Group[] = [
-  {
-    id: "1",
-    name: "Data Structures Study Circle",
-    subject: "Computer Science",
-    memberCount: 5,
-    tasks: [
-      { id: "t1", title: "Review binary trees", done: false },
-      { id: "t2", title: "Practice linked list problems", done: true },
-      { id: "t3", title: "Summarize Big-O notation", done: false },
-    ],
-  },
-  {
-    id: "2",
-    name: "Thermodynamics Crew",
-    subject: "Physics",
-    memberCount: 3,
-    tasks: [
-      { id: "t4", title: "Solve entropy problem set", done: false },
-      { id: "t5", title: "Read Chapter 4", done: false },
-    ],
-  },
-  {
-    id: "3",
-    name: "Philippine History Readers",
-    subject: "History",
-    memberCount: 8,
-    tasks: [
-      { id: "t6", title: "Outline Chapter 2 discussion", done: true },
-      { id: "t7", title: "Prepare debate points", done: false },
-      { id: "t8", title: "Watch assigned documentary", done: true },
-    ],
-  },
-];
-
-export function getGroups(): Group[] {
-  return groups;
+export async function getGroups(): Promise<Group[]> {
+  return prisma.group.findMany({
+    include: {tasks: true},
+    orderBy: {createdAt: "asc"},
+  });
 }
 
-export function getGroupById(id: string): Group | undefined {
-  return groups.find((group) => group.id === id);
+export async function getGroupById(id: string): Promise<Group | null> {
+  return prisma.group.findUnique({
+    where: {id},
+    include: {tasks: true},
+  })
+}
+
+type NewGroupInput = {
+  name: string;
+  subject: string;
+  memberCount: number;
+};
+
+export async function createGroup(input : NewGroupInput) : Promise<Group> {
+  return prisma.group.create({
+    data:{
+      name: input.name,
+      subject: input.subject,
+      memberCount: input.memberCount ?? 1,
+    },
+    include:{tasks: true},
+  });
+}
+
+type UpdateGroupInput = Partial<Omit<Group, "id" | "tasks">>
+
+export async function updateGroup(id: string, updates: UpdateGroupInput):Promise<Group|undefined>{
+  try{
+    return await prisma.group.update({
+      where: {id},
+      data: updates,
+      include:{tasks: true},
+    });
+  }catch{
+    return undefined;
+
+  }
+}
+
+export async function deleteGroup(id: string): Promise<boolean> {
+  try{
+    await prisma.group.delete({
+      where: {id}
+    })
+    return true;
+  }catch{
+    return false;
+  }
+}
+
+export async function createTask(groupId: string, title: string) : Promise<Task | undefined>{
+  const group = await prisma.group.findUnique({where: {id: groupId}})
+  if (!group){
+    return undefined;
+  }
+
+  return prisma.task.create({
+    data: {title, groupId, done: false}
+  })
+}  
+
+type UpdateTaskInput = Partial<{
+  title: string;
+  done: boolean;
+}>
+
+export async function updateTask(
+  groupId: string,
+  taskId: string,
+  updates: UpdateTaskInput
+): Promise<Task | undefined> {
+  const task = await prisma.task.findFirst({
+    where: {id: taskId, groupId},
+  })
+  if(!task){return undefined};
+
+  return prisma.task.update({
+    where: {id: taskId},
+    data: updates
+  })
+}
+
+export async function deleteTask(
+  groupId: string,
+  taskId: string,
+): Promise<boolean>{
+  const task = await prisma.task.findFirst({
+    where: {id: taskId, groupId},
+  })
+  if(!task){
+    return false;
+  }
+  await prisma.task.delete({
+    where: {id: taskId}
+  })
+  return true;  
 }
